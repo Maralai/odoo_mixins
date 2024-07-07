@@ -30,16 +30,24 @@ class DiffTrackingMixin(models.AbstractModel):
                 if old_value != new_value:
                     field_obj = dict(diff_tracked_fields)[field]
                     diff_style = getattr(field_obj, "track_diff", "code")
+
+                    field_string = field_obj.string or field.replace("_", " ").title()
+
+                    header = f"<h4>{escape(field_string)}:</h4>"
+
                     if diff_style == "code":
                         html_diff = record._format_code_diff(old_value, new_value)
                     elif diff_style == "text":
                         html_diff = record._format_text_diff(old_value, new_value)
                     else:
                         continue  # Skip if track_diff is not 'code' or 'text'
+
+                    full_html = f"{header}{html_diff}"
+
                     record.message_post(
-                        body=html_diff,
+                        body=full_html,
                         body_is_html=True,
-                        subject=f"{field.replace('_', ' ').title()} Updated",
+                        subject=f"{field_string} Updated",
                     )
 
         return result
@@ -63,8 +71,6 @@ class DiffTrackingMixin(models.AbstractModel):
                 )
             elif line.startswith("?"):
                 html.append(f'<span style="color: #808080;">{escape(line)}</span>')
-            else:
-                html.append(escape(line))
         html.append("</pre>")
         return "".join(html)
 
