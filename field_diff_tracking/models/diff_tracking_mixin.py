@@ -3,7 +3,6 @@ import difflib
 from html import escape
 import re
 
-
 class DiffTrackingMixin(models.AbstractModel):
     _name = "diff.tracking.mixin"
     _description = "Diff Tracking Mixin"
@@ -29,12 +28,7 @@ class DiffTrackingMixin(models.AbstractModel):
                     diff_style = getattr(field_obj, "track_diff", "code")
                     field_string = field_obj.string or field.replace("_", " ").title()
                     footer = f"<i class='text-muted'>({escape(field_string)})</i>"
-                    if diff_style == "code":
-                        html_diff = record._format_code_diff(old_value, new_value)
-                    elif diff_style == "text":
-                        html_diff = record._format_text_diff(old_value, new_value)
-                    else:
-                        continue  # Skip if track_diff is not 'code' or 'text'
+                    html_diff = record._format_diff(old_value, new_value, diff_style)
                     full_html = f"{html_diff}{footer}"
                     record.message_post(
                         body=full_html,
@@ -43,54 +37,34 @@ class DiffTrackingMixin(models.AbstractModel):
                     )
         return result
 
-    def _format_code_diff(self, old_value, new_value):
-        diff = difflib.ndiff(
-            (old_value or "").splitlines(keepends=True),
-            (new_value or "").splitlines(keepends=True),
-        )
+    def _format_diff(self, old_value, new_value, diff_style):
+        if diff_style == "code":
+            old_lines = (old_value or "").splitlines(keepends=True)
+            new_lines = (new_value or "").splitlines(keepends=True)
+        elif diff_style == "text":
+            old_lines = self._split_into_sentences(old_value or "")
+            new_lines = self._split_into_sentences(new_value or "")
+        else:
+            return ""
+
+        diff = list(difflib.ndiff(old_lines, new_lines))
+        
         html = [
-            "<pre style=\"white-space: pre; overflow-x: auto; font-family: 'Courier New', Courier, monospace;\">"
+            '<div style="width: 100%; overflow-x: auto;">'
+            '<pre style="white-space: pre; font-family: \'Courier New\', Courier, monospace; margin: 0;">'
         ]
+        
         for line in diff:
             if line.startswith("+"):
-                html.append(
-                    f'<span style="background-color: #e6ffe6;">{escape(line)}</span>'
-                )
+                html.append(f'<span style="background-color: #e6ffe6;">{escape(line)}</span>')
             elif line.startswith("-"):
-                html.append(
-                    f'<span style="background-color: #ffe6e6;">{escape(line)}</span>'
-                )
+                html.append(f'<span style="background-color: #ffe6e6;">{escape(line)}</span>')
             elif line.startswith("?"):
                 html.append(f'<span style="color: #808080;">{escape(line)}</span>')
-            else:
-                html.append(escape(line))
-        html.append("</pre>")
+        
+        html.append("</pre></div>")
         return "".join(html)
 
-    def _format_text_diff(self, old_value, new_value):
-        def split_into_sentences(text):
-            sentences = re.findall(r"[^.!?]+[.!?]*", text.strip())
-            return [s.strip() for s in sentences if s.strip()]
-
-        old_sentences = split_into_sentences(old_value or "")
-        new_sentences = split_into_sentences(new_value or "")
-        diff = difflib.ndiff(old_sentences, new_sentences)
-
-        html = [
-            "<pre style=\"white-space: pre; overflow-x: auto; font-family: 'Courier New', Courier, monospace;\">"
-        ]
-        for line in diff:
-            if line.startswith("+ "):
-                html.append(
-                    f'<span style="background-color: #e6ffe6;">{escape(line)}</span>'
-                )
-            elif line.startswith("- "):
-                html.append(
-                    f'<span style="background-color: #ffe6e6;">{escape(line)}</span>'
-                )
-            elif line.startswith("? "):
-                html.append(f'<span style="color: #808080;">{escape(line)}</span>')
-            else:
-                html.append(escape(line))
-        html.append("</pre>")
-        return "".join(html)
+    def _split_into_sentences(self, text):
+        sentences = re.findall(r'[^.!?]+[.!?]*', text.strip())
+        return [s.strip() + '\n' for s in sentences if s.strip()]
