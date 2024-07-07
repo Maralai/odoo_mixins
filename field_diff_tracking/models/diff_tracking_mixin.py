@@ -33,7 +33,7 @@ class DiffTrackingMixin(models.AbstractModel):
 
                     field_string = field_obj.string or field.replace("_", " ").title()
 
-                    header = f"<h4>{escape(field_string)}:</h4>"
+                    footer = f"<i class='text-muted' >({escape(field_string)})</i>"
 
                     if diff_style == "code":
                         html_diff = record._format_code_diff(old_value, new_value)
@@ -42,7 +42,7 @@ class DiffTrackingMixin(models.AbstractModel):
                     else:
                         continue  # Skip if track_diff is not 'code' or 'text'
 
-                    full_html = f"{header}{html_diff}"
+                    full_html = f"{html_diff}{footer}"
 
                     record.message_post(
                         body=full_html,
